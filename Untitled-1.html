@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Үйлдвэрийн барилга — 3D өнгө сонгогч</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#15181c; --panel:#1d2127; --panel2:#242932;
+    --text:#eef1f4; --muted:#9aa4b0; --accent:#f08a24; --border:#323a45;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;overflow:hidden;height:100vh}
+  #app{display:flex;height:100vh}
+  #viewport{flex:1;position:relative;min-width:0}
+  #viewport canvas{display:block;touch-action:none}
+  #hud{position:absolute;top:16px;left:18px;pointer-events:none}
+  #hud h1{font-family:'Oswald',sans-serif;font-size:20px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#22272e}
+  #hud .dim{display:inline-block;margin-top:6px;font-size:12px;font-weight:600;letter-spacing:.08em;color:#fff;background:#22272ecc;padding:4px 10px;border-radius:4px}
+  #hint{position:absolute;bottom:14px;left:18px;font-size:11.5px;color:#3b444f;pointer-events:none}
+  #sidebar{width:330px;background:var(--panel);border-left:1px solid var(--border);overflow-y:auto;padding:20px 18px 28px;display:flex;flex-direction:column;gap:20px}
+  .sec-title{font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:8px}
+  .sec-title .chip{margin-left:auto;font-family:'Inter';font-size:11px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--text);background:var(--panel2);border:1px solid var(--border);padding:3px 9px;border-radius:999px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .swatches{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:10px;margin-bottom:6px}
+  .sw{position:relative;height:46px;border-radius:7px;border:2px solid transparent;cursor:pointer;transition:transform .12s;outline:none}
+  .sw:hover{transform:translateY(-2px)}
+  .sw:focus-visible{border-color:#fff}
+  .sw.on{border-color:var(--accent);box-shadow:0 0 0 2px #f08a2433}
+  .sw.on::after{content:'✓';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+  .presets{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .preset{display:flex;align-items:center;gap:7px;background:var(--panel2);border:1px solid var(--border);border-radius:7px;padding:7px 10px;cursor:pointer;font-size:12px;color:var(--text)}
+  .preset:hover{border-color:var(--accent)}
+  .preset .pp{display:flex;border-radius:3px;overflow:hidden;width:26px;height:16px}
+  .preset .pp i{flex:1}
+  .slider-row{margin-top:12px}
+  .slider-row label{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:6px}
+  .slider-row label b{color:var(--text);font-weight:600}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .summary{background:var(--panel2);border:1px solid var(--border);border-radius:9px;padding:13px 14px;font-size:12.5px;line-height:1.9}
+  .summary .row{display:flex;align-items:center;gap:9px}
+  .summary .dot{width:14px;height:14px;border-radius:4px;flex:none;border:1px solid rgba(255,255,255,.18)}
+  .summary .lbl{color:var(--muted);width:62px;flex:none}
+  .btn{display:block;width:100%;background:var(--accent);color:#1a1005;border:none;border-radius:8px;padding:11px;font-family:'Inter';font-size:13.5px;font-weight:600;cursor:pointer}
+  .btn:hover{filter:brightness(1.08)}
+  .note{font-size:11px;color:var(--muted);line-height:1.6}
+  .door-card{background:var(--panel2);border:1px solid var(--border);border-radius:9px;padding:11px 12px;margin-top:10px}
+  .door-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .door-head b{font-size:12.5px}
+  .door-head .xbtn{background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;line-height:1;padding:2px 6px}
+  .door-head .xbtn:hover{color:#e66}
+  .door-row{display:flex;gap:8px;margin-bottom:8px}
+  .door-row select{flex:1;background:var(--panel);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 7px;font-size:12px;font-family:'Inter'}
+  .door-pos{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted)}
+  .door-pos input{flex:1}
+  .door-pos .vv{width:46px;text-align:right;color:var(--text);font-size:11px;font-weight:600;flex:none}
+  .btn2{display:block;width:100%;margin-top:10px;background:var(--panel2);border:1px dashed var(--border);color:var(--text);border-radius:8px;padding:9px;font-size:12.5px;font-family:'Inter';cursor:pointer}
+  .btn2:hover{border-color:var(--accent);color:var(--accent)}
+  .toggles{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+  .tgl{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--text);cursor:pointer;user-select:none}
+  .tgl input{width:16px;height:16px;accent-color:var(--accent);cursor:pointer}
+  .cfg-btns{display:flex;flex-direction:column;gap:0}
+  .cfg-btns .btn2{margin-top:8px}
+  @media (max-width:900px){
+    #app{flex-direction:column}
+    #viewport{height:52vh;flex:none}
+    #sidebar{width:100%;flex:1;border-left:none;border-top:1px solid var(--border)}
+    .swatches{grid-template-columns:repeat(5,1fr)}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="viewport">
+    <div id="hud">
+      <h1>Үйлдвэрийн барилга</h1>
+      <span class="dim" id="dimChip">36 × 30 м · Өндөр хэсэг 15 м / намхан хэсэг 8 м</span>
+    </div>
+    <div id="hint">Чирж эргүүлэх · Гүйлгэж / хоёр хуруугаар ойртуулах</div>
+  </div>
+  <div id="sidebar">
+    <div>
+      <div class="sec-title">Дээврийн өнгө <span class="chip" id="roofChip"></span></div>
+      <div class="swatches" id="roofSw"></div>
+    </div>
+    <div>
+      <div class="sec-title">Хананы өнгө <span class="chip" id="wallChip"></span></div>
+      <div class="swatches" id="wallSw"></div>
+    </div>
+    <div>
+      <div class="sec-title">Жийргэвч, хаяавч <span class="chip" id="trimChip"></span></div>
+      <div class="swatches" id="trimSw" style="grid-template-columns:repeat(4,1fr)"></div>
+    </div>
+    <div>
+      <div class="sec-title">Хаалганы өнгө <span class="chip" id="doorChip"></span></div>
+      <div class="swatches" id="doorColSw" style="grid-template-columns:repeat(4,1fr)"></div>
+      <div class="sec-title" style="margin-top:4px">Хаалганууд</div>
+      <div id="doorList"></div>
+      <button class="btn2" id="addDoor">+ Хаалга нэмэх</button>
+    </div>
+    <div>
+      <div class="sec-title">Цонх <span class="chip" id="winChip"></span></div>
+      <div id="winList"></div>
+      <button class="btn2" id="addWin">+ Цонх нэмэх</button>
+    </div>
+    <div>
+      <div class="sec-title">Санал болгох хослол</div>
+      <div class="presets" id="presets"></div>
+    </div>
+    <div>
+      <div class="sec-title">Хэмжээ тохируулах</div>
+      <div class="slider-row">
+        <label>Нийт урт <b id="totLVal">36 м</b></label>
+        <input type="range" id="totL" min="20" max="60" step="0.5" value="36">
+      </div>
+      <div class="slider-row">
+        <label>Нийт өргөн (алгасалт) <b id="totWVal">30 м</b></label>
+        <input type="range" id="totW" min="15" max="42" step="0.5" value="30">
+      </div>
+      <div class="slider-row">
+        <label>Өндөр хэсэг — нийт өндөр <b id="hTallVal">15.0 м</b></label>
+        <input type="range" id="hTall" min="10" max="18" step="0.1" value="15">
+      </div>
+      <div class="slider-row">
+        <label>Намхан хэсэг — нийт өндөр <b id="hLowVal">8.0 м</b></label>
+        <input type="range" id="hLow" min="5" max="12" step="0.1" value="8">
+      </div>
+      <div class="slider-row">
+        <label>Бетон цутгалт — өндөр хэсэг <b id="cTallVal">2.2 м</b></label>
+        <input type="range" id="cTall" min="0.3" max="5" step="0.1" value="2.2">
+      </div>
+      <div class="slider-row">
+        <label>Бетон цутгалт — намхан хэсэг <b id="cLowVal">1.7 м</b></label>
+        <input type="range" id="cLow" min="0.3" max="5" step="0.1" value="1.7">
+      </div>
+      <div class="slider-row">
+        <label>Бетон хананы зузаан <b id="cThickVal">0.35 м</b></label>
+        <input type="range" id="cThick" min="0.15" max="0.8" step="0.05" value="0.35">
+      </div>
+      <div class="slider-row">
+        <label>Өндөр хэсгийн урт <b id="lenTallVal">21 м</b></label>
+        <input type="range" id="lenTall" min="8" max="28" step="0.5" value="21">
+      </div>
+      <div class="slider-row">
+        <label>Дээврийн өргөлт (налуу) <b id="riseVal">1.6 м</b></label>
+        <input type="range" id="rise" min="0.6" max="3.5" step="0.1" value="1.6">
+      </div>
+    </div>
+    <div>
+      <div class="sec-title">Элемент харуулах / нуух</div>
+      <div class="toggles" id="toggles"></div>
+    </div>
+    <div>
+      <div class="sec-title">Тохиргоо хадгалах</div>
+      <div class="cfg-btns">
+        <button class="btn2" id="saveDef">Одоогийн тохиргоог үндсэн болгох</button>
+        <button class="btn2" id="expCfg">Тохиргоог файл болгон татах</button>
+        <button class="btn2" id="impCfg">Тохиргооны файл оруулах</button>
+        <input type="file" id="impFile" accept=".json,application/json" style="display:none">
+      </div>
+    </div>
+    <div class="summary" id="summary"></div>
+    <button class="btn" id="shot">Зураг татаж авах (PNG)</button>
+    <p class="note">Өнгөнүүд нь илгээсэн зурган дээрх ороомгуудаас авсан бөгөөд RAL код нь ойролцоо дүйцэл юм. Бодит өнгө дэлгэцээс бага зэрэг зөрж болзошгүй.</p>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ---------- Палитр (илгээсэн ороомгийн зургуудаас) ----------
+const COLORS = [
+  {n:'Тэнгэрийн хөх', ral:'RAL 5015', hex:'#2271B3'},
+  {n:'Далайн хөх',    ral:'RAL 5005', hex:'#1B5FAF'},
+  {n:'Оюу цэнхэр',    ral:'RAL 5018', hex:'#48B6BE'},
+  {n:'Ногоон',        ral:'RAL 6024', hex:'#1F9E52'},
+  {n:'Цагаан саарал', ral:'RAL 9002', hex:'#E5E7DC'},
+  {n:'Улбар шар',     ral:'RAL 2010', hex:'#D4652F'},
+  {n:'Хүрэн',         ral:'RAL 8017', hex:'#46342C'},
+  {n:'Графит саарал', ral:'RAL 7024', hex:'#45494E'},
+];
+const TRIMS = [
+  {n:'Цагаан',     ral:'RAL 9010', hex:'#F1F1EC'},
+  {n:'Графит',     ral:'RAL 7024', hex:'#3E4247'},
+  {n:'Хүрэн',      ral:'RAL 8017', hex:'#46342C'},
+  {n:'Далайн хөх', ral:'RAL 5005', hex:'#1B5FAF'},
+];
+const PRESETS = [
+  {n:'Сонгодог', roof:7, wall:4, trim:1},
+  {n:'Далайн',   roof:1, wall:4, trim:0},
+  {n:'Байгаль',  roof:3, wall:4, trim:2},
+  {n:'Дулаан',   roof:6, wall:4, trim:2},
+  {n:'Тод',      roof:0, wall:2, trim:0},
+];
+const DOORSIZES = [
+  {n:'Том — 5 × 5 м',     w:5,   h:5},
+  {n:'Дунд — 4 × 4 м',    w:4,   h:4},
+  {n:'Дунд — 3 × 3 м',    w:3,   h:3},
+  {n:'Жижиг — 1.5 × 2 м', w:1.5, h:2},
+];
+const DOORCOLORS = [
+  {n:'Цайвар саарал', hex:'#D7D7D3'},
+  {n:'Цагаан',        hex:'#F1F1EC'},
+  {n:'Графит',        hex:'#3E4247'},
+  {n:'Далайн хөх',    hex:'#1B5FAF'},
+];
+// Хана: N = хойд (урд урт тал), S = урд (ар урт тал), W = баруун үзүүр (өндөр), E = зүүн үзүүр (намхан)
+const WALLNAMES = {N:'Хойд урт тал', S:'Урд урт тал', W:'Баруун үзүүр (өндөр)', E:'Зүүн үзүүр (намхан)'};
+const state = {
+  roof:7, wall:4, trim:1, doorCol:0,
+  L:36, W:30,
+  hTall:15, hLow:8, cTall:2.2, cLow:1.7, cThick:0.35, lenTall:21, rise:1.6,
+  show: { eaves:true, ridge:true, corners:true, cap:true, mullions:true },
+  doors: [
+    {size:0, wall:'N', pos:0.30},   // том 5×5
+    {size:3, wall:'N', pos:0.72},   // жижиг 1.5×2
+  ],
+  // Цонх: len=урт, h=өндөр, pos=хананы дагуух байрлал, elev=доод ирмэгийн газраас өндөр
+  windows: [
+    {wall:'N', len:13.3, h:1.2, pos:0.25, elev:9.6},
+    {wall:'N', len:9.0,  h:1.2, pos:0.82, elev:3.4},
+    {wall:'S', len:13.3, h:1.2, pos:0.25, elev:9.6},
+    {wall:'S', len:9.0,  h:1.2, pos:0.82, elev:3.4},
+    {wall:'W', len:19.0, h:1.2, pos:0.5,  elev:10.4},
+    {wall:'E', len:19.0, h:1.2, pos:0.5,  elev:4.2},
+  ]
+};
+
+// ---------- Three.js суурь ----------
+const vp = document.getElementById('viewport');
+const renderer = new THREE.WebGLRenderer({antialias:true, preserveDrawingBuffer:true});
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+vp.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#cfdfe9');
+scene.fog = new THREE.Fog('#cfdfe9', 140, 360);
+
+const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 700);
+let camR = 88, camTheta = 0.8, camPhi = 1.14;
+function updateCam(){
+  camPhi = Math.max(0.35, Math.min(1.52, camPhi));
+  camR = Math.max(30, Math.min(180, camR));
+  camera.position.set(
+    camR*Math.sin(camPhi)*Math.sin(camTheta),
+    camR*Math.cos(camPhi),
+    camR*Math.sin(camPhi)*Math.cos(camTheta)
+  );
+  camera.lookAt(0, 7, 0);
+}
+
+// Гэрэлтүүлэг
+scene.add(new THREE.HemisphereLight('#dceaf5', '#8a7f6c', 0.85));
+const sun = new THREE.DirectionalLight('#fff4e0', 0.95);
+sun.position.set(50, 75, 30);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -55; sun.shadow.camera.right = 55;
+sun.shadow.camera.top = 55; sun.shadow.camera.bottom = -55;
+sun.shadow.camera.far = 250;
+scene.add(sun);
+
+// Газар
+const ground = new THREE.Mesh(
+  new THREE.CircleGeometry(260, 48),
+  new THREE.MeshStandardMaterial({color:'#9a9d90', roughness:1})
+);
+ground.rotation.x = -Math.PI/2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// ---------- Сэндвич хавтангийн текстур (1 тайл = 1 м өргөнтэй хавтан) ----------
+function panelTexture(){
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 128;
+  const g = c.getContext('2d');
+  const grad = g.createLinearGradient(0,0,128,0);
+  grad.addColorStop(0,'#f4f4f4'); grad.addColorStop(0.12,'#ffffff');
+  grad.addColorStop(0.88,'#ffffff'); grad.addColorStop(1,'#e2e2e2');
+  g.fillStyle = grad; g.fillRect(0,0,128,128);
+  g.fillStyle = 'rgba(0,0,0,0.22)'; g.fillRect(0,0,2,128); g.fillRect(126,0,2,128);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = 8;
+  return t;
+}
+// Нэг өнгөний нэг материалыг олон хэмжээст гадаргууд хэрэглэхийн тулд
+// UV-г метрээр өгч, текстурын давталтыг 1:1 болгоно.
+function mkMat(hex){
+  const t = panelTexture();
+  t.repeat.set(1, 1);
+  return new THREE.MeshStandardMaterial({color:hex, map:t, roughness:.55, metalness:.15, side:THREE.DoubleSide});
+}
+const matWall  = mkMat(COLORS[state.wall].hex);
+const matRoof  = mkMat(COLORS[state.roof].hex);
+const matTrim  = new THREE.MeshStandardMaterial({color:TRIMS[state.trim].hex, roughness:.4, metalness:.3});
+const matPlinth= new THREE.MeshStandardMaterial({color:'#b9b6ae', roughness:.95});
+const matGlass = new THREE.MeshStandardMaterial({color:'#a8cede', roughness:.08, metalness:.4, transparent:true, opacity:.85});
+const matFrame = new THREE.MeshStandardMaterial({color:'#e8e8e6', roughness:.5});
+// Секцийн (хэвтээ судалтай) хаалганы текстур — 1 тайл = 1 м
+function doorTexture(){
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 128;
+  const g = c.getContext('2d');
+  [0, 64].forEach(y=>{
+    const grad = g.createLinearGradient(0, y, 0, y+64);
+    grad.addColorStop(0,'#ffffff'); grad.addColorStop(0.5,'#f2f2f2'); grad.addColorStop(1,'#dcdcdc');
+    g.fillStyle = grad; g.fillRect(0, y, 128, 64);
+    g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(0, y+62, 128, 2);
+  });
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = 8;
+  return t;
+}
+const matDoor = new THREE.MeshStandardMaterial({
+  color: DOORCOLORS[state.doorCol].hex, map: doorTexture(),
+  roughness:.5, metalness:.2, side:THREE.DoubleSide
+});
+
+// PlaneGeometry-ийн UV-г метр рүү хөрвүүлэх (өргөн w, өндөр h)
+function planeM(w, h){
+  const g = new THREE.PlaneGeometry(w, h);
+  const uv = g.attributes.uv;
+  for(let i=0;i<uv.count;i++){ uv.setXY(i, uv.getX(i)*w, uv.getY(i)*h); }
+  return g;
+}
+
+// ---------- Барилга: хоёр түвшинт (өндөр + намхан хэсэг) ----------
+let L = state.L, W = state.W; // нийт урт, өргөн
+let building = null;
+
+function buildBlock(parent, x0, len, totalH, rise, conc, o){
+  const y0 = conc;                       // хавтан бетоны дээрээс эхэлнэ
+  const wallH = Math.max(1, totalH - rise - conc); // сэндвич хананы өндөр
+  const yE = y0 + wallH, yR = yE + rise;
+  const cx = x0 + len/2;
+  const add = m => { m.castShadow = true; m.receiveShadow = true; parent.add(m); };
+
+  // Бетон цутгамал доод хана — зузаанаас хамаарч хавтангаас цухуйна
+  // (сэндвич хавтанг ~120 мм гэж үзээд илүү гарсан хэсэг нь гадагш харагдана)
+  const prot = Math.max(0.02, state.cThick - 0.12);
+  const outer = o.outer || 0; // -1 = зүүн гадна үзүүр, +1 = баруун; уулзварын талд цухуйхгүй
+  const cb = new THREE.Mesh(new THREE.BoxGeometry(len + prot, conc, W + 2*prot), matPlinth);
+  cb.position.set(cx + outer*prot/2, conc/2, 0); add(cb);
+  // Бетоны дээд ирмэгийн налуу таг (ус зайлуулах)
+  if(state.show.cap){
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(len + prot + 0.06, 0.07, W + 2*prot + 0.08), matTrim);
+    cap.position.set(cx + outer*(prot + 0.06)/2, conc + 0.005, 0); add(cap);
+  }
+
+  // Урт талын хана (хойд/урд)
+  [-1,1].forEach(s=>{
+    const wm = new THREE.Mesh(planeM(len, wallH), matWall);
+    wm.position.set(cx, y0 + wallH/2, s*(W/2));
+    if(s<0) wm.rotation.y = Math.PI;
+    add(wm);
+  });
+
+  // Хавирган (гурвалжин оройтой) хана — хоёр үзүүрт
+  const shape = new THREE.Shape();
+  shape.moveTo(-W/2, 0); shape.lineTo(W/2, 0);
+  shape.lineTo(W/2, wallH); shape.lineTo(0, wallH + rise); shape.lineTo(-W/2, wallH);
+  shape.closePath();
+  [x0, x0+len].forEach((xe, idx)=>{
+    const gm = new THREE.Mesh(new THREE.ShapeGeometry(shape), matWall);
+    gm.position.set(xe, y0, 0);
+    gm.rotation.y = Math.PI/2;
+    add(gm);
+  });
+
+  // Дээвэр — хоёр налуу, нуруу нь х тэнхлэгийн дагуу
+  const slope = Math.sqrt((W/2)**2 + rise**2);
+  const ang = Math.atan2(rise, W/2);
+  const ov = 0.35;
+  [-1,1].forEach(s=>{
+    const rm = new THREE.Mesh(planeM(len + 0.3, slope + ov), matRoof);
+    rm.position.set(cx + outer*0.15, yE + rise/2 + 0.06 - (ov/2)*Math.sin(ang), s*(W/4 + (ov/2)*Math.cos(ang)));
+    rm.rotation.x = -Math.PI/2 + s*ang;
+    add(rm);
+  });
+
+  // Нурууны бүрээс — уулзварын талд шувтан
+  if(state.show.ridge){
+    const ridge = new THREE.Mesh(new THREE.BoxGeometry(len + 0.15, 0.22, 0.75), matTrim);
+    ridge.position.set(cx + outer*0.075, yR + 0.1, 0); add(ridge);
+  }
+
+  // Булангийн жийргэвч (зөвхөн гадна буланд)
+  if(state.show.corners) (o.corners || []).forEach(([sx,sz])=>{
+    const cn = new THREE.Mesh(new THREE.BoxGeometry(0.28, wallH, 0.28), matTrim);
+    cn.position.set(sx>0 ? x0+len : x0, y0 + wallH/2, sz*(W/2)); add(cn);
+  });
+  // Хаяавч — уулзварын талд шувтан
+  if(state.show.eaves) [-1,1].forEach(s=>{
+    const ev = new THREE.Mesh(new THREE.BoxGeometry(len + 0.15, 0.22, 0.3), matTrim);
+    ev.position.set(cx + outer*0.075, yE + 0.05, s*(W/2 + 0.05)); add(ev);
+  });
+}
+
+// ---------- Цонх байрлуулах ----------
+function placeWindows(parent){
+  const xW = -L/2, lenT = state.lenTall;
+  const isTall = x => x < xW + lenT;
+  const eavesAt = x => isTall(x)
+    ? state.hTall - state.rise
+    : state.hLow - Math.min(state.rise, state.hLow - 3);
+  const concAt = x => isTall(x) ? state.cTall : state.cLow;
+  state.windows.forEach(wn=>{
+    const onLong = (wn.wall === 'N' || wn.wall === 'S');
+    const wallLen = onLong ? L : W;
+    const len = Math.min(wn.len, wallLen - 1);
+    const m = len/2 + 0.4;
+    const t = -wallLen/2 + m + wn.pos * (wallLen - 2*m);
+    let cx, cz, rotY;
+    if(wn.wall==='N'){ cx=t; cz= W/2; rotY=0; }
+    else if(wn.wall==='S'){ cx=t; cz=-W/2; rotY=Math.PI; }
+    else if(wn.wall==='E'){ cx= L/2; cz=t; rotY= Math.PI/2; }
+    else { cx=-L/2; cz=t; rotY=-Math.PI/2; }
+    // Хавтангийн бүсэд (бетоны дээр, хаяавчийн доор) багтаах
+    let eaves, conc;
+    if(wn.wall==='W'){ eaves = state.hTall - state.rise; conc = state.cTall; }
+    else if(wn.wall==='E'){ eaves = state.hLow - Math.min(state.rise, state.hLow - 3); conc = state.cLow; }
+    else {
+      eaves = Math.min(eavesAt(cx - len/2), eavesAt(cx + len/2));
+      conc  = Math.max(concAt(cx - len/2), concAt(cx + len/2));
+    }
+    const h = wn.h;
+    let elev = Math.min(wn.elev, eaves - h - 0.15);
+    elev = Math.max(elev, conc + 0.15);
+    const cy = elev + h/2;
+    const nx = Math.sin(rotY), nz = Math.cos(rotY);
+    const tx = Math.cos(rotY), tz = -Math.sin(rotY); // хананы дагуух чиглэл
+    const fr = new THREE.Mesh(planeM(len + 0.4, h + 0.3), matFrame);
+    fr.position.set(cx + nx*0.02, cy, cz + nz*0.02);
+    fr.rotation.y = rotY;
+    fr.castShadow = fr.receiveShadow = true; parent.add(fr);
+    const gl = new THREE.Mesh(planeM(len, h), matGlass);
+    gl.position.set(cx + nx*0.05, cy, cz + nz*0.05);
+    gl.rotation.y = rotY; parent.add(gl);
+    const n = Math.max(1, Math.floor(len / 2.1));
+    if(state.show.mullions) for(let i=0; i<=n; i++){
+      const off = -len/2 + i*(len/n);
+      const mull = new THREE.Mesh(new THREE.BoxGeometry(0.08, h, 0.08), matFrame);
+      mull.position.set(cx + tx*off + nx*0.06, cy, cz + tz*off + nz*0.06);
+      parent.add(mull);
+    }
+  });
+}
+
+// ---------- Хаалга байрлуулах ----------
+function placeDoors(parent){
+  const xW = -L/2, lenT = state.lenTall;
+  state.doors.forEach(d=>{
+    const sz = DOORSIZES[d.size];
+    let x, z, rotY;
+    const mW = sz.w/2 + 0.6;
+    if(d.wall === 'N' || d.wall === 'S'){
+      x = -L/2 + mW + d.pos * (L - 2*mW);
+      z = (d.wall==='N' ? 1 : -1) * (W/2);
+      rotY = d.wall==='N' ? 0 : Math.PI;
+    } else {
+      z = -W/2 + mW + d.pos * (W - 2*mW);
+      x = (d.wall==='E' ? 1 : -1) * (L/2);
+      rotY = (d.wall==='E' ? 1 : -1) * Math.PI/2;
+    }
+    // Тухайн цэг дээрх хананы өндрөөс хэтрүүлэхгүй
+    let tall;
+    if(d.wall==='W') tall = true;
+    else if(d.wall==='E') tall = false;
+    else tall = x < xW + lenT;
+    const totalH = tall ? state.hTall : state.hLow;
+    const rise = tall ? state.rise : Math.min(state.rise, state.hLow - 3);
+    const eaves = totalH - rise; // газраас хаяа хүртэл
+    const dh = Math.min(sz.h, eaves - 0.3);
+    const nx = Math.sin(rotY), nz = Math.cos(rotY); // гадагш чиглэл
+    const tx = Math.cos(rotY), tz = -Math.sin(rotY); // хананы дагуух чиглэл
+    const out = Math.max(0.02, state.cThick - 0.12) + 0.1; // бетон ба тагны гадна талд
+
+    // Хүрээ: хоёр хатавч + тотго (бетон, хавтан хоёуланг нь давж цухуйна)
+    const jambW = 0.18;
+    const jambD = out + 0.24;      // хананаас хаалганы гадна тал хүртэл
+    const fOff = out/2 + 0.03;     // хүрээний төв
+    [-1, 1].forEach(s=>{
+      const jb = new THREE.Mesh(new THREE.BoxGeometry(jambW, dh + 0.12, jambD), matTrim);
+      jb.rotation.y = rotY;
+      jb.position.set(
+        x + tx*s*(sz.w/2 + jambW/2) + nx*fOff,
+        (dh + 0.12)/2,
+        z + tz*s*(sz.w/2 + jambW/2) + nz*fOff
+      );
+      jb.castShadow = jb.receiveShadow = true; parent.add(jb);
+    });
+    const lin = new THREE.Mesh(new THREE.BoxGeometry(sz.w + jambW*2, 0.2, jambD), matTrim);
+    lin.rotation.y = rotY;
+    lin.position.set(x + nx*fOff, dh + 0.12 + 0.1, z + nz*fOff);
+    lin.castShadow = lin.receiveShadow = true; parent.add(lin);
+
+    // Хаалганы хавтгай — хүрээний дотор, бетоны гадаргуугаас гадна
+    const dm = new THREE.Mesh(planeM(sz.w, dh), matDoor);
+    dm.position.set(x + nx*out, 0.02 + dh/2, z + nz*out);
+    dm.rotation.y = rotY;
+    dm.castShadow = dm.receiveShadow = true; parent.add(dm);
+    // Явган хаалганд бариул
+    if(sz.w < 2){
+      const hd = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.22, 0.05), matTrim);
+      hd.position.set(x + nx*(out + 0.06) - nz*(sz.w/2 - 0.18), 0.02 + dh*0.48, z + nz*(out + 0.06) + nx*(sz.w/2 - 0.18));
+      parent.add(hd);
+    }
+  });
+}
+
+function buildBuilding(){
+  if(building){
+    scene.remove(building);
+    building.traverse(o=>{ if(o.geometry) o.geometry.dispose(); });
+  }
+  building = new THREE.Group();
+  L = state.L; W = state.W;
+  state.lenTall = Math.min(state.lenTall, L - 6);
+  const lenT = state.lenTall, lenL = L - lenT;
+  const xW = -L/2; // баруун (өндөр) хэсгийн эхлэл
+
+  // Өндөр хэсэг (баруун тал)
+  buildBlock(building, xW, lenT, state.hTall, state.rise, state.cTall, {
+    corners: [[-1,-1],[-1,1]], outer: -1
+  });
+  // Намхан хэсэг (зүүн тал)
+  buildBlock(building, xW + lenT, lenL, state.hLow, Math.min(state.rise, state.hLow-3), state.cLow, {
+    corners: [[1,-1],[1,1]], outer: 1
+  });
+
+  // Цонх, хаалганууд
+  placeWindows(building);
+  placeDoors(building);
+
+  scene.add(building);
+  document.getElementById('dimChip').textContent =
+    `${L.toFixed(1).replace('.0','')} × ${W.toFixed(1).replace('.0','')} м · Өндөр хэсэг ${state.hTall.toFixed(1)} м / намхан хэсэг ${state.hLow.toFixed(1)} м`;
+}
+
+// ---------- UI ----------
+function swatchGrid(elId, list, key, chipId){
+  const el = document.getElementById(elId);
+  el.innerHTML = '';
+  list.forEach((c,i)=>{
+    const b = document.createElement('button');
+    b.className = 'sw' + (state[key]===i ? ' on' : '');
+    b.style.background = c.hex;
+    b.title = c.n + ' · ' + c.ral;
+    b.setAttribute('aria-label', c.n);
+    b.onclick = ()=>{ state[key]=i; applyColors(); refreshUI(); };
+    el.appendChild(b);
+  });
+  document.getElementById(chipId).textContent = list[state[key]].n;
+}
+function refreshUI(){
+  swatchGrid('roofSw', COLORS, 'roof', 'roofChip');
+  swatchGrid('wallSw', COLORS, 'wall', 'wallChip');
+  swatchGrid('trimSw', TRIMS, 'trim', 'trimChip');
+  swatchGrid('doorColSw', DOORCOLORS, 'doorCol', 'doorChip');
+  const r=COLORS[state.roof], w=COLORS[state.wall], t=TRIMS[state.trim], dc=DOORCOLORS[state.doorCol];
+  const dCount = {};
+  state.doors.forEach(d=>{ const n=DOORSIZES[d.size].n.split(' — ')[1]; dCount[n]=(dCount[n]||0)+1; });
+  const dLine = Object.entries(dCount).map(([n,c])=>`${n} × ${c}ш`).join(', ') || '—';
+  const winArea = state.windows.reduce((a,wn)=> a + Math.min(wn.len, (wn.wall==='N'||wn.wall==='S'?state.L:state.W)-1) * wn.h, 0);
+  document.getElementById('winChip').textContent = state.windows.length + ' ш · ' + winArea.toFixed(1) + ' м²';
+  document.getElementById('summary').innerHTML =
+    `<div class="row"><i class="dot" style="background:${r.hex}"></i><span class="lbl">Дээвэр</span><b>${r.n}</b>&nbsp;<span style="color:var(--muted)">${r.ral}</span></div>`+
+    `<div class="row"><i class="dot" style="background:${w.hex}"></i><span class="lbl">Хана</span><b>${w.n}</b>&nbsp;<span style="color:var(--muted)">${w.ral}</span></div>`+
+    `<div class="row"><i class="dot" style="background:${t.hex}"></i><span class="lbl">Жийргэвч</span><b>${t.n}</b>&nbsp;<span style="color:var(--muted)">${t.ral}</span></div>`+
+    `<div class="row"><i class="dot" style="background:${dc.hex}"></i><span class="lbl">Хаалга</span><b style="font-size:11.5px">${dLine}</b></div>`+
+    `<div class="row"><i class="dot" style="background:#a8cede"></i><span class="lbl">Цонх</span><b style="font-size:11.5px">${state.windows.length} ш — нийт ${winArea.toFixed(1)} м²</b></div>`;
+}
+function applyColors(){
+  matRoof.color.set(COLORS[state.roof].hex);
+  matWall.color.set(COLORS[state.wall].hex);
+  matTrim.color.set(TRIMS[state.trim].hex);
+  matDoor.color.set(DOORCOLORS[state.doorCol].hex);
+}
+
+// ---------- Хаалганы жагсаалт ----------
+function renderDoors(){
+  const dl = document.getElementById('doorList');
+  dl.innerHTML = '';
+  state.doors.forEach((d,i)=>{
+    const card = document.createElement('div');
+    card.className = 'door-card';
+    const sizeOpts = DOORSIZES.map((s,j)=>`<option value="${j}" ${j===d.size?'selected':''}>${s.n}</option>`).join('');
+    const wallOpts = Object.keys(WALLNAMES).map(k=>`<option value="${k}" ${k===d.wall?'selected':''}>${WALLNAMES[k]}</option>`).join('');
+    card.innerHTML =
+      `<div class="door-head"><b>Хаалга ${i+1}</b><button class="xbtn" title="Устгах">×</button></div>`+
+      `<div class="door-row"><select class="dsz">${sizeOpts}</select></div>`+
+      `<div class="door-row"><select class="dwl">${wallOpts}</select></div>`+
+      `<div class="door-pos">Байрлал<input type="range" min="0" max="1" step="0.01" value="${d.pos}"></div>`;
+    card.querySelector('.xbtn').onclick = ()=>{ state.doors.splice(i,1); renderDoors(); refreshUI(); buildBuilding(); };
+    card.querySelector('.dsz').onchange = e=>{ d.size = +e.target.value; refreshUI(); buildBuilding(); };
+    card.querySelector('.dwl').onchange = e=>{ d.wall = e.target.value; buildBuilding(); };
+    card.querySelector('input[type=range]').oninput = e=>{ d.pos = +e.target.value; buildBuilding(); };
+    dl.appendChild(card);
+  });
+}
+document.getElementById('addDoor').onclick = ()=>{
+  if(state.doors.length >= 10) return;
+  state.doors.push({size:0, wall:'N', pos:0.5});
+  renderDoors(); refreshUI(); buildBuilding();
+};
+
+// ---------- Цонхны жагсаалт ----------
+function renderWindows(){
+  const wl = document.getElementById('winList');
+  wl.innerHTML = '';
+  state.windows.forEach((wn,i)=>{
+    const card = document.createElement('div');
+    card.className = 'door-card';
+    const wallOpts = Object.keys(WALLNAMES).map(k=>`<option value="${k}" ${k===wn.wall?'selected':''}>${WALLNAMES[k]}</option>`).join('');
+    card.innerHTML =
+      `<div class="door-head"><b>Цонх ${i+1}</b><button class="xbtn" title="Устгах">×</button></div>`+
+      `<div class="door-row"><select class="wwl">${wallOpts}</select></div>`+
+      `<div class="door-pos">Урт<input class="wlen" type="range" min="1.5" max="30" step="0.1" value="${wn.len}"><span class="vv">${wn.len.toFixed(1)} м</span></div>`+
+      `<div class="door-pos">Өндөр<input class="wh" type="range" min="0.8" max="2.4" step="0.1" value="${wn.h}"><span class="vv">${wn.h.toFixed(1)} м</span></div>`+
+      `<div class="door-pos">Байрлал<input class="wpos" type="range" min="0" max="1" step="0.01" value="${wn.pos}"></div>`+
+      `<div class="door-pos">Доод түвшин<input class="welev" type="range" min="0.8" max="14" step="0.1" value="${wn.elev}"><span class="vv">${wn.elev.toFixed(1)} м</span></div>`;
+    card.querySelector('.xbtn').onclick = ()=>{ state.windows.splice(i,1); renderWindows(); refreshUI(); buildBuilding(); };
+    card.querySelector('.wwl').onchange = e=>{ wn.wall = e.target.value; refreshUI(); buildBuilding(); };
+    const bindW = (cls, key)=>{
+      const inp = card.querySelector(cls);
+      inp.oninput = e=>{
+        wn[key] = +e.target.value;
+        const vv = inp.parentElement.querySelector('.vv');
+        if(vv) vv.textContent = wn[key].toFixed(1) + ' м';
+        refreshUI(); buildBuilding();
+      };
+    };
+    bindW('.wlen','len'); bindW('.wh','h'); bindW('.welev','elev');
+    card.querySelector('.wpos').oninput = e=>{ wn.pos = +e.target.value; buildBuilding(); };
+    wl.appendChild(card);
+  });
+}
+document.getElementById('addWin').onclick = ()=>{
+  if(state.windows.length >= 14) return;
+  state.windows.push({wall:'N', len:6, h:1.2, pos:0.5, elev:3});
+  renderWindows(); refreshUI(); buildBuilding();
+};
+
+// ---------- Элемент харуулах / нуух ----------
+const TOGGLES = [
+  ['eaves',   'Хаяавч'],
+  ['ridge',   'Нурууны бүрээс'],
+  ['corners', 'Булангийн жийргэвч'],
+  ['cap',     'Бетоны ус зайлуулах таг'],
+  ['mullions','Цонхны хуваалт'],
+];
+function renderToggles(){
+  const el = document.getElementById('toggles');
+  el.innerHTML = '';
+  TOGGLES.forEach(([key, name])=>{
+    const lb = document.createElement('label');
+    lb.className = 'tgl';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = !!state.show[key];
+    cb.onchange = ()=>{ state.show[key] = cb.checked; buildBuilding(); };
+    lb.appendChild(cb);
+    lb.appendChild(document.createTextNode(name));
+    el.appendChild(lb);
+  });
+}
+
+// ---------- Тохиргоо хадгалах / ачаалах ----------
+const SAVE_KEY = 'uildver3d_cfg_v1';
+function mergeState(obj){
+  if(!obj || typeof obj !== 'object') return;
+  ['roof','wall','trim','doorCol','L','W','hTall','hLow','cTall','cLow','cThick','lenTall','rise']
+    .forEach(k=>{ if(typeof obj[k] === 'number') state[k] = obj[k]; });
+  if(Array.isArray(obj.doors)) state.doors = obj.doors;
+  if(Array.isArray(obj.windows)) state.windows = obj.windows;
+  if(obj.show && typeof obj.show === 'object') Object.keys(state.show).forEach(k=>{ if(k in obj.show) state.show[k] = !!obj.show[k]; });
+}
+// Слайдер, шошгыг state-ээс сэргээх
+const SLIDER_MAP = [
+  ['totL','L','totLVal', v=>v.toFixed(1).replace('.0','')],
+  ['totW','W','totWVal', v=>v.toFixed(1).replace('.0','')],
+  ['hTall','hTall','hTallVal', v=>v.toFixed(1)],
+  ['hLow','hLow','hLowVal', v=>v.toFixed(1)],
+  ['cTall','cTall','cTallVal', v=>v.toFixed(1)],
+  ['cLow','cLow','cLowVal', v=>v.toFixed(1)],
+  ['cThick','cThick','cThickVal', v=>v.toFixed(2)],
+  ['lenTall','lenTall','lenTallVal', v=>v.toFixed(1).replace('.0','')],
+  ['rise','rise','riseVal', v=>v.toFixed(1)],
+];
+function syncControls(){
+  document.getElementById('lenTall').max = state.L - 6;
+  SLIDER_MAP.forEach(([id, key, valId, fmt])=>{
+    document.getElementById(id).value = state[key];
+    document.getElementById(valId).textContent = fmt(state[key]) + ' м';
+  });
+}
+function syncAll(){
+  syncControls();
+  applyColors();
+  refreshUI();
+  renderDoors();
+  renderWindows();
+  renderToggles();
+  buildBuilding();
+}
+function flashBtn(btn, txt){
+  const old = btn.textContent;
+  btn.textContent = txt;
+  setTimeout(()=>{ btn.textContent = old; }, 1600);
+}
+document.getElementById('saveDef').onclick = e=>{
+  try{
+    localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+    flashBtn(e.target, 'Хадгалагдлаа ✓ — дараа нээхэд ачаалагдана');
+  }catch(err){
+    flashBtn(e.target, 'Энд хадгалах боломжгүй — файлаар татаарай');
+  }
+};
+document.getElementById('expCfg').onclick = ()=>{
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.download = 'uildver-tohirgoo.json';
+  a.href = URL.createObjectURL(blob);
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+document.getElementById('impCfg').onclick = ()=> document.getElementById('impFile').click();
+document.getElementById('impFile').onchange = e=>{
+  const f = e.target.files[0];
+  if(!f) return;
+  const rd = new FileReader();
+  rd.onload = ()=>{
+    try{ mergeState(JSON.parse(rd.result)); syncAll(); }
+    catch(err){ alert('Файл уншигдсангүй — зөв тохиргооны JSON файл мөн эсэхийг шалгаарай.'); }
+  };
+  rd.readAsText(f);
+  e.target.value = '';
+};
+// Эхлэхэд хадгалсан тохиргоо байвал ачаалах
+try{
+  const saved = localStorage.getItem(SAVE_KEY);
+  if(saved) mergeState(JSON.parse(saved));
+}catch(err){ /* хадгалалт дэмжигдэхгүй орчин — үндсэн утгаар үргэлжилнэ */ }
+const pEl = document.getElementById('presets');
+PRESETS.forEach(p=>{
+  const b = document.createElement('button');
+  b.className = 'preset';
+  b.innerHTML = `<span class="pp"><i style="background:${COLORS[p.roof].hex}"></i><i style="background:${COLORS[p.wall].hex}"></i></span>${p.n}`;
+  b.onclick = ()=>{ state.roof=p.roof; state.wall=p.wall; state.trim=p.trim; applyColors(); refreshUI(); };
+  pEl.appendChild(b);
+});
+// Слайдерууд
+function bindSlider(id, key, valId, unit, fmt){
+  const el = document.getElementById(id);
+  el.oninput = ()=>{
+    state[key] = +el.value;
+    document.getElementById(valId).textContent = (fmt ? fmt(state[key]) : state[key].toFixed(1)) + ' ' + unit;
+    buildBuilding();
+  };
+}
+bindSlider('hTall','hTall','hTallVal','м');
+bindSlider('hLow','hLow','hLowVal','м');
+bindSlider('cTall','cTall','cTallVal','м');
+bindSlider('cLow','cLow','cLowVal','м');
+bindSlider('cThick','cThick','cThickVal','м', v=>v.toFixed(2));
+bindSlider('lenTall','lenTall','lenTallVal','м', v=>v.toFixed(1).replace('.0',''));
+bindSlider('rise','rise','riseVal','м');
+// Нийт хэмжээ
+const totLIn = document.getElementById('totL'), totWIn = document.getElementById('totW');
+const lenTallIn = document.getElementById('lenTall');
+totLIn.oninput = ()=>{
+  state.L = +totLIn.value;
+  document.getElementById('totLVal').textContent = state.L.toFixed(1).replace('.0','') + ' м';
+  lenTallIn.max = state.L - 6;
+  if(state.lenTall > state.L - 6){
+    state.lenTall = state.L - 6;
+    lenTallIn.value = state.lenTall;
+    document.getElementById('lenTallVal').textContent = state.lenTall.toFixed(1).replace('.0','') + ' м';
+  }
+  refreshUI(); buildBuilding();
+};
+totWIn.oninput = ()=>{
+  state.W = +totWIn.value;
+  document.getElementById('totWVal').textContent = state.W.toFixed(1).replace('.0','') + ' м';
+  refreshUI(); buildBuilding();
+};
+
+// Зураг татах
+document.getElementById('shot').onclick = ()=>{
+  renderer.render(scene, camera);
+  const a = document.createElement('a');
+  a.download = 'uildver-' + COLORS[state.roof].n + '-' + COLORS[state.wall].n + '.png';
+  a.href = renderer.domElement.toDataURL('image/png');
+  a.click();
+};
+
+// ---------- Удирдлага ----------
+const cv = renderer.domElement;
+let dragging=false, px=0, py=0, pinchD=0;
+cv.addEventListener('pointerdown', e=>{ dragging=true; px=e.clientX; py=e.clientY; cv.setPointerCapture(e.pointerId); });
+cv.addEventListener('pointermove', e=>{
+  if(!dragging) return;
+  camTheta -= (e.clientX-px)*0.006;
+  camPhi   -= (e.clientY-py)*0.005;
+  px=e.clientX; py=e.clientY; updateCam();
+});
+cv.addEventListener('pointerup', ()=> dragging=false);
+cv.addEventListener('wheel', e=>{ e.preventDefault(); camR *= (1 + Math.sign(e.deltaY)*0.08); updateCam(); }, {passive:false});
+cv.addEventListener('touchstart', e=>{ if(e.touches.length===2){ dragging=false; pinchD = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY); } }, {passive:true});
+cv.addEventListener('touchmove', e=>{
+  if(e.touches.length===2){
+    const d = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
+    camR *= pinchD/d; pinchD = d; updateCam();
+  }
+}, {passive:true});
+
+// ---------- Гогцоо ----------
+function resize(){
+  const w = vp.clientWidth, h = vp.clientHeight;
+  renderer.setSize(w, h);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  camera.aspect = w/h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+
+buildBuilding();
+refreshUI();
+renderDoors();
+renderWindows();
+resize();
+updateCam();
+(function loop(){ requestAnimationFrame(loop); renderer.render(scene, camera); })();
+</script>
+</body>
+</html>
